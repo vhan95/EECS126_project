@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 class Voter:
     """Representation of a single voter in a larger model"""
     voting_methods = ('simple',)
+    visualization_methods = ('shell','random','kamada_kawai')
 
     def __init__(self, belief=0, paccept=1.0):
         """
@@ -50,7 +51,7 @@ class VoterModel:
     """A class for building, running, and analyzing voter models"""
     init_methods = ('rand_pair', 'all_rand')
 
-    def __init__(self, graph=None, voting='simple', nbeliefs=2):
+    def __init__(self, graph=None, voting='simple', nbeliefs=2, visualization='shell'):
         """
         Construct a VoterModel.
 
@@ -72,6 +73,9 @@ class VoterModel:
 
         assert nbeliefs == 2, "only 2 beliefs allowed for now"
         self.nbeliefs = nbeliefs
+        
+        assert visualization in Voter.visualization_methods, "voting method must be in {}".format(Voter.visualization_methods)
+        self.visualization = visualization
 
         self._voters = []
 
@@ -96,7 +100,17 @@ class VoterModel:
             'cmap': 'bwr'
         }
         plt.subplot()
-        nx.draw(self.graph, **options)
+        if self.visualization == 'shell':
+            nonneutral = [i for i, b in enumerate(colors) if b != 0]
+            neutral = [i for i, b in enumerate(colors) if b == 0]
+            if len(nonneutral)==0 or len(neutral)==0:
+                nx.draw_shell(self.graph, **options)
+            else:
+                nx.draw_shell(self.graph, nlist=[neutral, nonneutral], **options)
+        elif self.visualization == 'random':
+            nx.draw(self.graph, **options)
+        elif self.visualization == 'kamada_kawai':
+            nx.draw_kamada_kawai(self.graph, **options)   
         plt.draw()
 
     def update(self):
