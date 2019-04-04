@@ -98,3 +98,12 @@ class VoterModel:
         plt.subplot()
         nx.draw(self.graph, **options)
         plt.draw()
+
+    def update(self):
+        """Vote and update beliefs for all nodes"""
+        # Exchange votes across all edges
+        for e in self.graph.edges:
+            self._voters[e[0]].exchange_votes(self._voters[e[1]])
+        # Update based on votes
+        for v in self._voters:
+            v.update(self.voting)
