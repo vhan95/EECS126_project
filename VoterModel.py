@@ -11,17 +11,19 @@ import matplotlib.pyplot as plt
 
 class Voter:
     """Representation of a single voter in a larger model"""
-    voting_methods = ('simple',)
+    voting_methods = ('simple', 'probability')
     visualization_methods = ('shell','random','kamada_kawai')
 
-    def __init__(self, belief=0, paccept=1.0):
+    def __init__(self, degree, belief=0, paccept=1.0):
         """
         Construct a Voter
 
         Parameters:
+          degree: the degree of the node representing this Voter
           belief: initial belief in the interval [-1, 1]
           paccept: probability of accepting a belief update
         """
+        self.degree = degree
         self.belief = belief
         self.paccept = paccept
 
@@ -34,6 +36,7 @@ class Voter:
 
     def update(self, method):
         assert method in self.voting_methods, "unknown voting method"
+        ##### SIMPLE #####
         if method == "simple":
             # Majority non-neutral vote wins
             vsum = sum(self._votes)
@@ -45,6 +48,10 @@ class Voter:
                 self.belief = -1
             elif vsum > 0 and accept:
                 self.belief = 1
+        ##### PROBABILITY #####
+        elif method == "probability":
+            pass
+            
 
 
 class VoterModel:
@@ -82,13 +89,15 @@ class VoterModel:
     def initialize(self, init_method):
         """Initialize nodes based on a model"""
         assert init_method in self.init_methods, "initialization method must be in {}".format(self.init_methods)
+        degrees = [(n, nx.degree(self.graph, n)) for n in nx.nodes(self.graph)]
         if init_method == "rand_pair":
-            self._voters = [Voter(0, 1.0) for i in range(self.graph.order())]
+            self._voters = [Voter(d, 0, 1.0) for _, d in degrees]
+            # Update Voter degrees
             vupdate = np.random.choice(self.graph.order(), 2)
             self._voters[vupdate[0]].belief = 1
             self._voters[vupdate[1]].belief = -1
         elif init_method == "all_rand":
-            self._voters = [Voter(np.random.choice([-1, 0, 1]), 1.0) for i in range(self.graph.order())]
+            self._voters = [Voter(d, np.random.choice([-1, 0, 1]), 1.0) for _, d in degrees] 
 
     def draw(self):
         """Plot the current state with matplotlib"""
