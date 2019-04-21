@@ -14,7 +14,7 @@ class Voter:
     voting_methods = ('simple', 'probability', 'weighted_prob')
     visualization_methods = ('shell','random','kamada_kawai')
 
-    def __init__(self, degree, belief=0, paccept=1.0):
+    def __init__(self, degree, belief=0, paccept=1.0, handicap_b1=1.0, handicap_b2=1.0):
         """
         Construct a Voter
 
@@ -22,10 +22,16 @@ class Voter:
           degree: the degree of the node representing this Voter
           belief: initial belief, tuple of value {0, 1, 2} and weight [0, 1]
           paccept: probability of accepting a belief update
+          handicap_b1: the propagation handicap for belief 1, [0, 1]
+                       1.0 is no handicap
+          handicap_b2: the propagation handicap for belief 2, [0, 1]
+                       1.0 is no handicap
         """
         self.degree = degree
         self.belief = belief
         self.paccept = paccept
+        self.handicap_b1 = handicap_b1
+        self.handicap_b2 = handicap_b2
 
         self._votes = []
 
@@ -51,6 +57,11 @@ class Voter:
             elif v[0] == 2:
                 cnt_b2 += 1
                 wgt_b2 += v[1]
+        # Apply handicaps
+        cnt_b1 *= self.handicap_b1
+        wgt_b1 *= self.handicap_b1
+        cnt_b2 *= self.handicap_b2
+        wgt_b2 *= self.handicap_b2
         ##### SIMPLE #####
         if method == "simple":
             # Majority non-neutral vote wins
@@ -92,7 +103,7 @@ class VoterModel:
     """A class for building, running, and analyzing voter models"""
     init_methods = ('rand_pair', 'all_rand')
 
-    def __init__(self, graph=None, voting='simple', nbeliefs=2, visualization='shell'):
+    def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell'):
         """
         Construct a VoterModel.
 
@@ -100,7 +111,11 @@ class VoterModel:
           graph: a networkx graph representing the model connectivity
                  automatically generates an E-R(50, 0.125) graph if None
           voting: string representing the voting and belief update method
-                  valid options are: {simple}
+                  valid options are: {simple, probability, weighted_prob}
+          handicap_b1: the propagation handicap for belief 1, [0, 1]
+                       1.0 is no handicap
+          handicap_b2: the propagation handicap for belief 2, [0, 1]
+                       1.0 is no handicap
           nbeliefs: the number of possible beliefs
                     must be 2 for now
         """
@@ -108,6 +123,9 @@ class VoterModel:
             self.graph = nx.erdos_renyi_graph(50, 0.125)
         else:
             self.graph = graph
+
+        self.handicap_b1 = handicap_b1
+        self.handicap_b2 = handicap_b2
 
         assert voting in Voter.voting_methods, "voting method must be in {}".format(Voter.voting_methods)
         self.voting = voting
@@ -125,12 +143,14 @@ class VoterModel:
         assert init_method in self.init_methods, "initialization method must be in {}".format(self.init_methods)
         degrees = [(n, nx.degree(self.graph, n)) for n in self.graph.nodes]
         if init_method == "rand_pair":
-            self._voters = [Voter(d, (0, 1.), 1.0) for _, d in degrees]
+            self._voters = [Voter(d, (0, 1.), 1.0,
+                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees]
             vupdate = np.random.choice(self.graph.order(), 2)
             self._voters[vupdate[0]].belief = (1, 1.)
             self._voters[vupdate[1]].belief = (2, 1.)
         elif init_method == "all_rand":
-            self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0) for _, d in degrees] 
+            self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0, 
+                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
 
     @staticmethod
     def belief_to_cmap(belief):
