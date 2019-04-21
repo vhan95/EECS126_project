@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 class Voter:
     """Representation of a single voter in a larger model"""
-    voting_methods = ('simple', 'probability')
+    voting_methods = ('simple', 'probability', 'weighted_prob')
     visualization_methods = ('shell','random','kamada_kawai')
 
     def __init__(self, degree, belief=0, paccept=1.0):
@@ -20,7 +20,7 @@ class Voter:
 
         Parameters:
           degree: the degree of the node representing this Voter
-          belief: initial belief in the interval [-1, 1]
+          belief: initial belief, tuple of value {0, 1, 2} and weight [0, 1]
           paccept: probability of accepting a belief update
         """
         self.degree = degree
@@ -36,31 +36,54 @@ class Voter:
 
     def update(self, method):
         assert method in self.voting_methods, "unknown voting method"
-        self._votes = np.array(self._votes)
+        cnt_b1 = cnt_b2 = wgt_b1 = wgt_b2 = 0
+        # Voter's pre-existing belief carries weight
+        if self.belief[0] == 1:
+            cnt_b1 += 1
+            wgt_b1 += self.belief[1]
+        if self.belief[0] == 2:
+            cnt_b2 += 1
+            wgt_b2 += self.belief[1]
+        for v in self._votes:
+            if v[0] == 1:
+                cnt_b1 += 1
+                wgt_b1 += v[1]
+            elif v[0] == 2:
+                cnt_b2 += 1
+                wgt_b2 += v[1]
         ##### SIMPLE #####
         if method == "simple":
             # Majority non-neutral vote wins
-            sum_b1 = sum(self._votes == 1)
-            sum_b2 = sum(self._votes == 2)
             # Probabilistically accept update
             accept = np.random.rand() < self.paccept
-            if (sum_b1 + sum_b2) == 0:
+            if (cnt_b1 + cnt_b2) == 0:
                 pass  # Own belief is unchanged
-            elif sum_b1 > sum_b2 and accept:
-                self.belief = 1
-            elif sum_b2 > sum_b1 and accept:
-                self.belief = 2
+            elif cnt_b1 > cnt_b2 and accept:
+                self.belief = (1, 1.)
+            elif cnt_b2 > cnt_b1 and accept:
+                self.belief = (2, 1.)
         ##### PROBABILITY #####
         elif method == "probability":
-            sum_b1 = sum(self._votes == 1)
-            sum_b2 = sum(self._votes == 2)
-            p_b1 = sum_b1 / self.degree
-            p_b2 = sum_b2 / self.degree
+            p_b1 = cnt_b1 / self.degree
+            p_b2 = cnt_b2 / self.degree
             draw = np.random.rand()
             if draw < p_b1:
-                self.belief = 1
+                self.belief = (1, 1.)
             elif draw > (1 - p_b2):
-                self.belief = 2
+                self.belief = (2, 1.)
+        ##### WEIGHTED PROBABILITY #####
+        elif method == "weighted_prob":
+            p_b1 = wgt_b1 / self.degree
+            p_b2 = wgt_b2 / self.degree
+            draw = np.random.rand()
+            if draw < p_b1:
+                if self.belief[0] == 1:
+                    p_b1 = max(p_b1, self.belief[1])  # Beliefs don't decrease in strength
+                self.belief = (1, p_b1)
+            if draw > (1 - p_b2):
+                if self.belief[0] == 2:
+                    p_b2 = max(p_b2, self.belief[1])  # Beliefs don't decrease in strength
+                self.belief = (2, p_b2)
         # Reset the votes for the next update
         self._votes = []
 
@@ -102,25 +125,32 @@ class VoterModel:
         assert init_method in self.init_methods, "initialization method must be in {}".format(self.init_methods)
         degrees = [(n, nx.degree(self.graph, n)) for n in self.graph.nodes]
         if init_method == "rand_pair":
-            self._voters = [Voter(d, 0, 1.0) for _, d in degrees]
+            self._voters = [Voter(d, (0, 1.), 1.0) for _, d in degrees]
             vupdate = np.random.choice(self.graph.order(), 2)
-            self._voters[vupdate[0]].belief = 1
-            self._voters[vupdate[1]].belief = 2
+            self._voters[vupdate[0]].belief = (1, 1.)
+            self._voters[vupdate[1]].belief = (2, 1.)
         elif init_method == "all_rand":
-            self._voters = [Voter(d, np.random.choice([0, 1, 2]), 1.0) for _, d in degrees] 
+            self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0) for _, d in degrees] 
 
     @staticmethod
     def belief_to_cmap(belief):
         """Convert {neutral=0, b1=1, b2=2} to the bwr colormap"""
         table = (0, 1, -1)
-        return table[belief]
+        return table[belief[0]] * belief[1]
         
     def draw(self):
         """Plot the current state with matplotlib"""
         colors = [self.belief_to_cmap(v.belief) for v in self._voters]
+        labels = {}
+        for n in self.graph.nodes:
+            labels[n] = str(self._voters[n].belief[0])
         options = {
             'node_color': colors,
-            'node_size': 100,
+            'vmin': -1,
+            'vmax': 1,
+            'labels': labels,
+            'font_weight': 'bold',
+            'node_size': 200,
             'width': 3,
             'cmap': 'bwr'
         }
