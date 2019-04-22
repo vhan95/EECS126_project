@@ -7,6 +7,7 @@
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
+import imageio
 
 
 class Voter:
@@ -103,7 +104,7 @@ class VoterModel:
     """A class for building, running, and analyzing voter models"""
     init_methods = ('rand_pair', 'all_rand')
 
-    def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell'):
+    def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell', redraw=True):
         """
         Construct a VoterModel.
 
@@ -118,6 +119,9 @@ class VoterModel:
                        1.0 is no handicap
           nbeliefs: the number of possible beliefs
                     must be 2 for now
+          visualization: string representing the visualization method
+          redraw: boolean which is true if visualization plots should be 
+                  redrawn on the same axes and false otherwise
         """
         if graph is None:
             self.graph = nx.erdos_renyi_graph(50, 0.125)
@@ -133,10 +137,13 @@ class VoterModel:
         assert nbeliefs == 2, "only 2 beliefs allowed for now"
         self.nbeliefs = nbeliefs
         
-        assert visualization in Voter.visualization_methods, "voting method must be in {}".format(Voter.visualization_methods)
+        assert visualization in Voter.visualization_methods, "visualization method must be in {}".format(Voter.visualization_methods)
         self.visualization = visualization
 
         self._voters = []
+        
+        self.redraw = redraw
+        
 
     def initialize(self, init_method):
         """Initialize nodes based on a model"""
@@ -151,6 +158,17 @@ class VoterModel:
         elif init_method == "all_rand":
             self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0, 
                                   handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+        
+        # setup drawing and saving the resulting gif   
+        if self.redraw:
+            plt.ion()
+            #self.fig, self.ax = plt.subplots(figsize=(10,5))
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(1,1,1)
+        else:
+            plt.ioff()
+        self._images = []
+            
 
     @staticmethod
     def belief_to_cmap(belief):
@@ -174,19 +192,35 @@ class VoterModel:
             'width': 3,
             'cmap': 'bwr'
         }
-        plt.subplot()
+        
+        if self.redraw:
+            self.ax.clear()
+        else:
+            #self.fig, self.ax = plt.subplots(figsize=(10,5))
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(1,1,1)
         if self.visualization == 'shell':
             nonneutral = [i for i, b in enumerate(colors) if b != 0]
             neutral = [i for i, b in enumerate(colors) if b == 0]
             if len(nonneutral)==0 or len(neutral)==0:
-                nx.draw_shell(self.graph, **options)
+                nx.draw_shell(self.graph, ax=self.ax, **options)
             else:
-                nx.draw_shell(self.graph, nlist=[neutral, nonneutral], **options)
+                nx.draw_shell(self.graph, ax=self.ax, nlist=[neutral, nonneutral], **options)
         elif self.visualization == 'random':
-            nx.draw(self.graph, **options)
+            nx.draw(self.graph, ax=self.ax, **options)
         elif self.visualization == 'kamada_kawai':
-            nx.draw_kamada_kawai(self.graph, **options)   
-        plt.draw()
+            nx.draw_kamada_kawai(self.graph, ax=self.ax, **options)   
+            
+
+        # save the resulting figure so that we can make a gif later if wanted    
+        self.fig.canvas.draw()       # draw the canvas, cache the renderer
+        image = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype='uint8')
+        image = image.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
+        self._images.append(image)
+        
+    def save_gif(self, fps=1, fname='sim.gif'):
+        """Save all the images in the simulation into a gif"""
+        imageio.mimsave('./'+fname, self._images, fps=fps)
 
     def update(self):
         """Vote and update beliefs for all nodes"""
