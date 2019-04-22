@@ -190,9 +190,16 @@ class VoterModel:
 
     def update(self):
         """Vote and update beliefs for all nodes"""
+        current_belief_arr = []
+        updated_belief_arr = []
+        
         # Exchange votes across all edges
         for e in self.graph.edges:
             self._voters[e[0]].exchange_votes(self._voters[e[1]])
         # Update based on votes
         for v in self._voters:
+            current_belief_arr.append(v.belief[0])
             v.update(self.voting)
+            updated_belief_arr.append(v.belief[0])
+
+        return current_belief_arr, updated_belief_arr
