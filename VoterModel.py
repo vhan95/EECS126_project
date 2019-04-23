@@ -13,7 +13,6 @@ import imageio
 class Voter:
     """Representation of a single voter in a larger model"""
     voting_methods = ('simple', 'probability', 'weighted_prob')
-    visualization_methods = ('shell','random','kamada_kawai')
 
     def __init__(self, degree, belief=0, paccept=1.0, handicap_b1=1.0, handicap_b2=1.0):
         """
@@ -35,6 +34,7 @@ class Voter:
         self.handicap_b2 = handicap_b2
 
         self._votes = []
+        
 
     def exchange_votes(self, other):
         """Exchange votes across an edge"""
@@ -103,6 +103,7 @@ class Voter:
 class VoterModel:
     """A class for building, running, and a, nalyzing voter models"""
     init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n')
+    visualization_methods = ('shell', 'random', 'kamada_kawai', 'spring', 'spectral', 'circular')
 
     def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell', redraw=True):
         """
@@ -137,12 +138,29 @@ class VoterModel:
         assert nbeliefs == 2, "only 2 beliefs allowed for now"
         self.nbeliefs = nbeliefs
         
-        assert visualization in Voter.visualization_methods, "visualization method must be in {}".format(Voter.visualization_methods)
+        assert visualization in self.visualization_methods, "visualization method must be in {}".format(self.visualization_methods)
         self.visualization = visualization
 
         self._voters = []
         
         self.redraw = redraw
+        
+        self.node_pos = None
+        
+        if self.visualization == 'shell':
+            pass
+        elif self.visualization == 'random':
+            self.node_pos=nx.random_layout(self.graph) 
+        elif self.visualization == 'kamada_kawai':
+            pass
+        elif self.visualization == 'spring':
+            self.node_pos=nx.spring_layout(self.graph) 
+        elif self.visualization == 'spectral':
+            self.node_pos=nx.spectral_layout(self.graph) 
+        elif self.visualization == 'circular':
+            self.node_pos=nx.circular_layout(self.graph) 
+        
+        
         
 
     def initialize(self, init_method):
@@ -215,10 +233,10 @@ class VoterModel:
                 nx.draw_shell(self.graph, ax=self.ax, **options)
             else:
                 nx.draw_shell(self.graph, ax=self.ax, nlist=[neutral, nonneutral], **options)
-        elif self.visualization == 'random':
-            nx.draw(self.graph, ax=self.ax, **options)
         elif self.visualization == 'kamada_kawai':
             nx.draw_kamada_kawai(self.graph, ax=self.ax, **options)   
+        else:
+            nx.draw(self.graph, pos=self.node_pos, ax=self.ax, **options) 
             
 
         # save the resulting figure so that we can make a gif later if wanted    
