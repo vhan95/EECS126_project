@@ -166,6 +166,8 @@ class VoterModel:
             self.node_pos=nx.spectral_layout(self.graph) 
         elif self.visualization == 'circular':
             self.node_pos=nx.circular_layout(self.graph) 
+
+        self.init_method = None
         
         
         
@@ -192,6 +194,8 @@ class VoterModel:
             n = self.graph.number_of_nodes()
             self._voters = [Voter(d, (np.random.randint(1,high=(n+1)), 1.), 1.0, 
                                   handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+
+        self.init_method = init_method
         
         # setup drawing and saving the resulting gif   
         if self.redraw:
@@ -205,28 +209,39 @@ class VoterModel:
             
 
     @staticmethod
-    def belief_to_cmap(belief):
+    def belief_to_bwr(belief):
         """Convert {neutral=0, b1=1, b2=2} to the bwr colormap"""
         table = (0, 1, -1)
         return table[belief[0]] * belief[1]
+    
+    @staticmethod
+    def belief_to_tab10(belief):
+        """Convert to the tab10 colormap"""
+        return belief[0] % 10
         
     def draw(self):
         """Plot the current state with matplotlib"""
-        colors = [self.belief_to_cmap(v.belief) for v in self._voters]
+        if self.init_method == "all_rand_n":
+            colors = [self.belief_to_tab10(v.belief) for v in self._voters]
+            cmap = 'tab10'
+        else:
+            colors = [self.belief_to_bwr(v.belief) for v in self._voters]
+            cmap = 'bwr'
         labels = {}
         for n in self.graph.nodes:
             labels[n] = str(self._voters[n].belief[0])
         options = {
             'node_color': colors,
-            'vmin': -1,
-            'vmax': 1,
             'labels': labels,
             'font_weight': 'bold',
             'node_size': 200,
             'width': 3,
-            'cmap': 'bwr'
+            'cmap': cmap
         }
-        
+        if self.init_method != "all_rand_n":
+            options['vmin'] = -1
+            options['vmax'] = 1
+
         if self.redraw:
             self.ax.clear()
         else:
