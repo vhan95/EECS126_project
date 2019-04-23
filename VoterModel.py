@@ -165,7 +165,7 @@ class VoterModel:
             
         elif init_method == "all_rand_n":
             n = self.graph.number_of_nodes()
-            self._voters = [Voter(d, (np.random.randint(0,high=n), 1.), 1.0, 
+            self._voters = [Voter(d, (np.random.randint(1,high=(n+1)), 1.), 1.0, 
                                   handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
         
         # setup drawing and saving the resulting gif   
