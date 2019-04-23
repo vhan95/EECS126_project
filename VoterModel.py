@@ -8,6 +8,7 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 import imageio
+from collections import defaultdict
 
 
 class Voter:
@@ -43,59 +44,65 @@ class Voter:
 
     def update(self, method):
         assert method in self.voting_methods, "unknown voting method"
-        cnt_b1 = cnt_b2 = wgt_b1 = wgt_b2 = 0
+        cnts = defaultdict(lambda : 0)
+        wgts = defaultdict(lambda : 0)
         # Voter's pre-existing belief carries weight
-        if self.belief[0] == 1:
-            cnt_b1 += 1
-            wgt_b1 += self.belief[1]
-        if self.belief[0] == 2:
-            cnt_b2 += 1
-            wgt_b2 += self.belief[1]
+        if self.belief[0] != 0:
+            cnts[self.belief[0]] += 1
+            wgts[self.belief[0]] += self.belief[1]
         for v in self._votes:
-            if v[0] == 1:
-                cnt_b1 += 1
-                wgt_b1 += v[1]
-            elif v[0] == 2:
-                cnt_b2 += 1
-                wgt_b2 += v[1]
+            if v[0] == 0:
+                continue  # Neutral votes don't cause belief changes
+            cnts[v[0]] += 1
+            wgts[v[0]] += v[1]
         # Apply handicaps
-        cnt_b1 *= self.handicap_b1
-        wgt_b1 *= self.handicap_b1
-        cnt_b2 *= self.handicap_b2
-        wgt_b2 *= self.handicap_b2
+        # TODO: reimplement handicaps
+        # cnt_b1 *= self.handicap_b1
+        # wgt_b1 *= self.handicap_b1
+        # cnt_b2 *= self.handicap_b2
+        # wgt_b2 *= self.handicap_b2
         ##### SIMPLE #####
         if method == "simple":
             # Majority non-neutral vote wins
             # Probabilistically accept update
             accept = np.random.rand() < self.paccept
-            if (cnt_b1 + cnt_b2) == 0:
-                pass  # Own belief is unchanged
-            elif cnt_b1 > cnt_b2 and accept:
-                self.belief = (1, 1.)
-            elif cnt_b2 > cnt_b1 and accept:
-                self.belief = (2, 1.)
+            b_new = self.belief[0]
+            cnt_max = 0
+            for b in cnts:
+                # Allow other beliefs to override internal if the count is equal
+                # Necessary for the all-unique initialization to run
+                if cnts[b] > cnt_max or (cnts[b] == cnt_max and b != self.belief[0]):
+                    b_new = b
+                    cnt_max = cnts[b]
+            self.belief = (b_new, 1.)
         ##### PROBABILITY #####
         elif method == "probability":
-            p_b1 = cnt_b1 / self.degree
-            p_b2 = cnt_b2 / self.degree
-            draw = np.random.rand()
-            if draw < p_b1:
-                self.belief = (1, 1.)
-            elif draw > (1 - p_b2):
-                self.belief = (2, 1.)
+            # Get the probabilities for each belief
+            belief_list = list(cnts.keys())
+            belief_probs = [cnts[b] / (self.degree + 1) for b in belief_list] # self-vote adds a degree
+            # Add the probability of no change
+            belief_list += [-1]
+            belief_probs += [1 - sum(belief_probs)]
+            draw = np.random.choice(belief_list, p=np.array(belief_probs))
+            if draw == -1:
+                draw = self.belief[0]
+            self.belief = (draw, 1.)
         ##### WEIGHTED PROBABILITY #####
         elif method == "weighted_prob":
-            p_b1 = wgt_b1 / self.degree
-            p_b2 = wgt_b2 / self.degree
-            draw = np.random.rand()
-            if draw < p_b1:
-                if self.belief[0] == 1:
-                    p_b1 = max(p_b1, self.belief[1])  # Beliefs don't decrease in strength
-                self.belief = (1, p_b1)
-            if draw > (1 - p_b2):
-                if self.belief[0] == 2:
-                    p_b2 = max(p_b2, self.belief[1])  # Beliefs don't decrease in strength
-                self.belief = (2, p_b2)
+            belief_list = list(wgts.keys())
+            belief_probs = [wgts[b] / (self.degree + 1) for b in belief_list]
+            # Add the probability of no change
+            belief_list += [-1]
+            belief_probs += [1 - sum(belief_probs)]
+            draw = np.random.choice(belief_list, p=np.array(belief_probs))
+            if draw == -1:
+                pass
+            else:
+                new_wgt = wgts[draw] / self.degree
+                if draw == self.belief[0]:
+                    # Beliefs don't decrease in strength
+                    new_wgt = max(wgts[draw] / (self.degree + 1), self.belief[1])
+                self.belief = (draw, new_wgt)
         # Reset the votes for the next update
         self._votes = []
 
