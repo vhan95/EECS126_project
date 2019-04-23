@@ -109,7 +109,7 @@ class Voter:
 
 class VoterModel:
     """A class for building, running, and a, nalyzing voter models"""
-    init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n')
+    init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n', 'all_unique')
     visualization_methods = ('shell', 'random', 'kamada_kawai', 'spring', 'spectral', 'circular')
 
     def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell', redraw=True):
@@ -193,7 +193,15 @@ class VoterModel:
         elif init_method == "all_rand_n":
             n = self.graph.number_of_nodes()
             self._voters = [Voter(d, (np.random.randint(1,high=(n+1)), 1.), 1.0, 
-                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees]
+            
+        elif init_method == "all_unique":
+            self._voters = []
+            n = self.graph.number_of_nodes()
+            for i in range(1,n+1):
+                _, d = degrees[i-1]
+                self._voters.append(Voter(d, (i, 1.), 1.0, 
+                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2))
 
         self.init_method = init_method
         
@@ -221,7 +229,7 @@ class VoterModel:
         
     def draw(self):
         """Plot the current state with matplotlib"""
-        if self.init_method == "all_rand_n":
+        if self.init_method == "all_rand_n" or self.init_method == "all_unique":
             colors = [self.belief_to_tab10(v.belief) for v in self._voters]
             cmap = 'tab10'
         else:
@@ -238,7 +246,7 @@ class VoterModel:
             'width': 3,
             'cmap': cmap
         }
-        if self.init_method != "all_rand_n":
+        if self.init_method != "all_rand_n" and self.init_method != "all_unique":
             options['vmin'] = -1
             options['vmax'] = 1
 
