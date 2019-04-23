@@ -101,8 +101,8 @@ class Voter:
 
 
 class VoterModel:
-    """A class for building, running, and analyzing voter models"""
-    init_methods = ('rand_pair', 'all_rand')
+    """A class for building, running, and a, nalyzing voter models"""
+    init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n')
 
     def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell', redraw=True):
         """
@@ -157,6 +157,15 @@ class VoterModel:
             self._voters[vupdate[1]].belief = (2, 1.)
         elif init_method == "all_rand":
             self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0, 
+                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+            
+        elif init_method == "all_rand_two":
+            self._voters = [Voter(d, (np.random.choice([1, 2]), 1.), 1.0, 
+                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+            
+        elif init_method == "all_rand_n":
+            n = self.graph.number_of_nodes()
+            self._voters = [Voter(d, (np.random.randint(0,high=n), 1.), 1.0, 
                                   handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
         
         # setup drawing and saving the resulting gif   
