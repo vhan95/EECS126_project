@@ -14,31 +14,68 @@ Everytime the beliefs of individuals in the voter population get updated, this f
 	2. The composition of beliefs in the population per update
 """
 
-def track_changes(current_beliefs, updated_beliefs, flux_arr, belief_arr):
+def track_changes(current_beliefs, updated_beliefs, times, flux_arr, belief_arr, time_arr, beliefs):
 	flux = sum(i != j for i, j in zip(current_beliefs, updated_beliefs))
-	flux_arr.append(flux/len(updated_beliefs))
-	belief_arr.append([updated_beliefs.count(0)/len(updated_beliefs), updated_beliefs.count(1)/len(updated_beliefs), updated_beliefs.count(2)/len(updated_beliefs)])
+	flux_arr.append(flux)
 
-	return flux_arr, belief_arr
+	b_arr = []
+	for b in beliefs:
+		b_arr.append(updated_beliefs.count(b)/len(updated_beliefs))
+	belief_arr.append(b_arr)
+	time_arr.append(times)
+
+	return flux_arr, belief_arr, time_arr
 
 """
 Plot Flux:
 Plots the average number of vote changes per update across all updates
 """
 def plot_flux(flux_arr):
-    plt.plot(flux_arr)
+    plt.plot(range(1,len(flux_arr)+1), flux_arr)
     plt.xlabel('Iterations')
-    plt.ylabel('Average Number of Vote Changes per Iteration')
+    plt.ylabel('Number of Vote Changes per Iteration')
     plt.show()
 
-def plot_comparisons(belief_arr):
-    b0 = [item[0] for item in belief_arr]
-    b1 = [item[1] for item in belief_arr]
-    b2 = [item[2] for item in belief_arr]
-    plt.plot(b0)
-    plt.plot(b1)
-    plt.plot(b2)
+"""
+Plot Comparisons:
+Plots the distribution of beliefs per iteration
+"""
+
+def plot_comparisons(belief_arr, beliefs):
+    for i in range(len(beliefs)):
+        dist_i = [item[i] for item in belief_arr]
+        plt.plot(range(1,len(dist_i)+1), dist_i)
     plt.xlabel('Iterations')
     plt.ylabel('Percentage of Votes')
-    plt.legend(['No belief', 'Belief 1', 'Belief 2'] , loc='upper left')
+    plt.ylim(0,1)
+    
+    legend_arr = []
+    for i in range(len(beliefs)):
+        label = 'Belief ' + str(beliefs[i])
+        legend_arr.append(label)
+        
+    plt.legend(legend_arr, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
+
+"""
+Convergence Time:
+Reports the time that it takes for one belief to dominate a voter population.
+"""
+
+def convergence_time(time_arr, belief_arr):
+    conv_arr = [i for i in range(len(belief_arr)) if set(belief_arr[i]) == {0,1}]
+    conv_time = 0
+    if len(conv_arr) == 0:
+        # Implies that a belief has not completely dominated a voter population yet
+        for i in range(len(time_arr)):
+            # Return the total time elapsed for iterations (true time for convergence is greater than this value)
+            conv_time += sum(time_arr[i])
+            
+    else:
+        conv_idx = conv_arr[0]
+        for i in range(conv_idx + 1):
+            conv_time += sum(time_arr[i])
+    
+    return conv_time
+        
+        

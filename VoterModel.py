@@ -94,6 +94,7 @@ class Voter:
             # Add the probability of no change
             belief_list += [-1]
             belief_probs += [1 - sum(belief_probs)]
+            belief_probs = [x*(x>=0) for x in belief_probs]
             draw = np.random.choice(belief_list, p=np.array(belief_probs))
             if draw == -1:
                 pass
@@ -112,7 +113,7 @@ class VoterModel:
     init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n', 'all_unique')
     visualization_methods = ('shell', 'random', 'kamada_kawai', 'spring', 'spectral', 'circular')
 
-    def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., nbeliefs=2, visualization='shell', redraw=True):
+    def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., clock='discrete', nbeliefs=2, visualization='shell', redraw=True):
         """
         Construct a VoterModel.
 
@@ -125,6 +126,8 @@ class VoterModel:
                        1.0 is no handicap
           handicap_b2: the propagation handicap for belief 2, [0, 1]
                        1.0 is no handicap
+          clock: string representing the time scale at which voters decide
+                 to change their belief (discrete or exponential)
           nbeliefs: the number of possible beliefs
                     must be 2 for now
           visualization: string representing the visualization method
@@ -138,6 +141,8 @@ class VoterModel:
 
         self.handicap_b1 = handicap_b1
         self.handicap_b2 = handicap_b2
+        
+        self.clock = clock
 
         assert voting in Voter.voting_methods, "voting method must be in {}".format(Voter.voting_methods)
         self.voting = voting
@@ -172,7 +177,7 @@ class VoterModel:
         
         
 
-    def initialize(self, init_method):
+    def initialize(self, init_method, k=0):
         """Initialize nodes based on a model"""
         assert init_method in self.init_methods, "initialization method must be in {}".format(self.init_methods)
         degrees = [(n, nx.degree(self.graph, n)) for n in self.graph.nodes]
@@ -187,8 +192,16 @@ class VoterModel:
                                   handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
             
         elif init_method == "all_rand_two":
-            self._voters = [Voter(d, (np.random.choice([1, 2]), 1.), 1.0, 
-                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+            #self._voters = [Voter(d, (np.random.choice([1, 2]), 1.), 1.0, handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+            # Sets k voters to Belief 1, the remaining n-k voters to Belief 2
+            self._voters = []
+            n = self.graph.number_of_nodes()
+            for i in range(1,k+1):
+                _, d = degrees[i-1]
+                self._voters.append(Voter(d, (1, 1.), 1.0, handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2))
+            for i in range(k+1,n+1):
+                _, d = degrees[i-1]
+                self._voters.append(Voter(d, (2, 1.), 1.0, handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2))
             
         elif init_method == "all_rand_n":
             n = self.graph.number_of_nodes()
@@ -283,14 +296,20 @@ class VoterModel:
         """Vote and update beliefs for all nodes"""
         current_belief_arr = []
         updated_belief_arr = []
+        time_arr = []
         
         # Exchange votes across all edges
         for e in self.graph.edges:
             self._voters[e[0]].exchange_votes(self._voters[e[1]])
         # Update based on votes
         for v in self._voters:
+            if self.clock == 'exponential':
+                # Every voter has an exponential clock with rate 1.0
+                time_arr.append(np.random.exponential(1))
+            else:
+                time_arr.append(1)
             current_belief_arr.append(v.belief[0])
             v.update(self.voting)
             updated_belief_arr.append(v.belief[0])
 
-        return current_belief_arr, updated_belief_arr
+        return current_belief_arr, updated_belief_arr, time_arr
