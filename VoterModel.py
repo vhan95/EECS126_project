@@ -15,7 +15,7 @@ class Voter:
     """Representation of a single voter in a larger model"""
     voting_methods = ('simple', 'probability', 'weighted_prob', 'single_neighbor')
 
-    def __init__(self, degree, belief=0, paccept=1.0, handicap_b1=1.0, handicap_b2=1.0):
+    def __init__(self, degree, belief=0, paccept=1.0):
         """
         Construct a Voter
 
@@ -23,16 +23,10 @@ class Voter:
           degree: the degree of the node representing this Voter
           belief: initial belief, tuple of value {0, 1, 2} and weight [0, 1]
           paccept: probability of accepting a belief update
-          handicap_b1: the propagation handicap for belief 1, [0, 1]
-                       1.0 is no handicap
-          handicap_b2: the propagation handicap for belief 2, [0, 1]
-                       1.0 is no handicap
         """
         self.degree = degree
         self.belief = belief
         self.paccept = paccept
-        self.handicap_b1 = handicap_b1
-        self.handicap_b2 = handicap_b2
 
         self._votes = []
         
@@ -61,12 +55,6 @@ class Voter:
                 continue  # Neutral votes don't cause belief changes
             cnts[v[0]] += 1
             wgts[v[0]] += v[1]
-        # Apply handicaps
-        # TODO: reimplement handicaps
-        # cnt_b1 *= self.handicap_b1
-        # wgt_b1 *= self.handicap_b1
-        # cnt_b2 *= self.handicap_b2
-        # wgt_b2 *= self.handicap_b2
         ##### SIMPLE #####
         if method in ["simple", "single_neighbor"]:
             # Majority non-neutral vote wins
@@ -119,7 +107,7 @@ class VoterModel:
     init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n', 'all_unique')
     visualization_methods = ('shell', 'random', 'kamada_kawai', 'spring', 'spectral', 'circular')
 
-    def __init__(self, graph=None, voting='simple', handicap_b1=1., handicap_b2=1., clock='discrete', nbeliefs=2, visualization='shell', redraw=True):
+    def __init__(self, graph=None, voting='simple', clock='discrete', nbeliefs=2, visualization='shell', redraw=True):
         """
         Construct a VoterModel.
 
@@ -128,10 +116,6 @@ class VoterModel:
                  automatically generates an E-R(50, 0.125) graph if None
           voting: string representing the voting and belief update method
                   valid options are: {simple, probability, weighted_prob}
-          handicap_b1: the propagation handicap for belief 1, [0, 1]
-                       1.0 is no handicap
-          handicap_b2: the propagation handicap for belief 2, [0, 1]
-                       1.0 is no handicap
           clock: string representing the time scale at which voters decide
                  to change their belief (discrete or exponential)
           nbeliefs: the number of possible beliefs
@@ -144,9 +128,6 @@ class VoterModel:
             self.graph = nx.erdos_renyi_graph(50, 0.125)
         else:
             self.graph = graph
-
-        self.handicap_b1 = handicap_b1
-        self.handicap_b2 = handicap_b2
         
         self.clock = clock
 
@@ -188,39 +169,34 @@ class VoterModel:
         assert init_method in self.init_methods, "initialization method must be in {}".format(self.init_methods)
         degrees = [(n, nx.degree(self.graph, n)) for n in self.graph.nodes]
         if init_method == "rand_pair":
-            self._voters = [Voter(d, (0, 1.), 1.0,
-                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees]
+            self._voters = [Voter(d, (0, 1.), 1.0) for _, d in degrees]
             vupdate = np.random.choice(self.graph.order(), 2)
             self._voters[vupdate[0]].belief = (1, 1.)
             self._voters[vupdate[1]].belief = (2, 1.)
         elif init_method == "all_rand":
-            self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0, 
-                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
+            self._voters = [Voter(d, (np.random.choice([0, 1, 2]), 1.), 1.0) for _, d in degrees] 
             
         elif init_method == "all_rand_two":
-            #self._voters = [Voter(d, (np.random.choice([1, 2]), 1.), 1.0, handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees] 
             # Sets k voters to Belief 1, the remaining n-k voters to Belief 2
             self._voters = []
             n = self.graph.number_of_nodes()
             for i in range(1,k+1):
                 _, d = degrees[i-1]
-                self._voters.append(Voter(d, (1, 1.), 1.0, handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2))
+                self._voters.append(Voter(d, (1, 1.), 1.0))
             for i in range(k+1,n+1):
                 _, d = degrees[i-1]
-                self._voters.append(Voter(d, (2, 1.), 1.0, handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2))
+                self._voters.append(Voter(d, (2, 1.), 1.0))
             
         elif init_method == "all_rand_n":
             n = self.graph.number_of_nodes()
-            self._voters = [Voter(d, (np.random.randint(1,high=(n+1)), 1.), 1.0, 
-                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2) for _, d in degrees]
+            self._voters = [Voter(d, (np.random.randint(1,high=(n+1)), 1.), 1.0) for _, d in degrees]
             
         elif init_method == "all_unique":
             self._voters = []
             n = self.graph.number_of_nodes()
             for i in range(1,n+1):
                 _, d = degrees[i-1]
-                self._voters.append(Voter(d, (i, 1.), 1.0, 
-                                  handicap_b1=self.handicap_b1, handicap_b2=self.handicap_b2))
+                self._voters.append(Voter(d, (i, 1.), 1.0))
 
         self.init_method = init_method
         
@@ -289,6 +265,7 @@ class VoterModel:
             
 
         # save the resulting figure so that we can make a gif later if wanted    
+        # the following three lines were taken from https://ndres.me/post/matplotlib-animated-gifs-easily/
         self.fig.canvas.draw()       # draw the canvas, cache the renderer
         image = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype='uint8')
         image = image.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
