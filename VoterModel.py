@@ -13,7 +13,7 @@ from collections import defaultdict
 
 class Voter:
     """Representation of a single voter in a larger model"""
-    voting_methods = ('simple', 'probability', 'weighted_prob')
+    voting_methods = ('simple', 'probability', 'weighted_prob', 'single_neighbor')
 
     def __init__(self, degree, belief=0, paccept=1.0, handicap_b1=1.0, handicap_b2=1.0):
         """
@@ -42,8 +42,14 @@ class Voter:
         self._votes.append(other.belief)
         other._votes.append(self.belief)
 
+    def push_vote(self, other):
+        """Push self's belief on the other without receiving the other's belief"""
+        other._votes.append(self.belief)
+
     def update(self, method):
         assert method in self.voting_methods, "unknown voting method"
+        if not self._votes:
+            return
         cnts = defaultdict(lambda : 0)
         wgts = defaultdict(lambda : 0)
         # Voter's pre-existing belief carries weight
@@ -62,7 +68,7 @@ class Voter:
         # cnt_b2 *= self.handicap_b2
         # wgt_b2 *= self.handicap_b2
         ##### SIMPLE #####
-        if method == "simple":
+        if method in ["simple", "single_neighbor"]:
             # Majority non-neutral vote wins
             # Probabilistically accept update
             accept = np.random.rand() < self.paccept
@@ -70,7 +76,7 @@ class Voter:
             cnt_max = 0
             for b in cnts:
                 # Allow other beliefs to override internal if the count is equal
-                # Necessary for the all-unique initialization to run
+                # Necessary for the all-unique and single-voter cases to run
                 if cnts[b] > cnt_max or (cnts[b] == cnt_max and b != self.belief[0]):
                     b_new = b
                     cnt_max = cnts[b]
@@ -298,18 +304,42 @@ class VoterModel:
         updated_belief_arr = []
         time_arr = []
         
-        # Exchange votes across all edges
-        for e in self.graph.edges:
-            self._voters[e[0]].exchange_votes(self._voters[e[1]])
-        # Update based on votes
-        for v in self._voters:
-            if self.clock == 'exponential':
-                # Every voter has an exponential clock with rate 1.0
-                time_arr.append(np.random.exponential(1))
+        ## Exchange votes across edges ##
+        # Continuous time, single voter version
+        if self.clock == "exponential":
+            # Get current beliefs
+            for v in self._voters:
+                current_belief_arr.append(v.belief[0])
+            updated_belief_arr = current_belief_arr.copy()
+            # Every voter has an exponential clock with rate 1/n
+            # The minimum of all these clocks is exponential with rate 1
+            time_arr.append(np.random.exponential(1))
+            # Which voter woke up?
+            node = np.random.choice(len(self._voters))
+            edges = list(self.graph.edges(node))
+            if self.voting == 'single_neighbor':
+                # Convert a single neighbor at random
+                edge = edges[np.random.choice(len(edges))]
+                neighbor = edge[1] if edge[0] == node else edge[0]
+                self._voters[node].push_vote(self._voters[neighbor])
+                self._voters[neighbor].update(self.voting)
+                updated_belief_arr[neighbor] = self._voters[neighbor].belief[0]
             else:
-                time_arr.append(1)
-            current_belief_arr.append(v.belief[0])
-            v.update(self.voting)
-            updated_belief_arr.append(v.belief[0])
+                # Convert all neighbors
+                for e in edges:
+                    neighbor = e[1] if e[0] == node else e[0]
+                    self._voters[node].push_vote(self._voters[neighbor])
+                    self._voters[neighbor].update(self.voting)
+                    updated_belief_arr[neighbor] = self._voters[neighbor].belief[0]
+        # Discrete time simultaneous voting version
+        else:
+            time_arr.append(1)
+            for e in self.graph.edges:
+                self._voters[e[0]].exchange_votes(self._voters[e[1]])
+            # Update based on votes
+            for v in self._voters:
+                current_belief_arr.append(v.belief[0])
+                v.update(self.voting)
+                updated_belief_arr.append(v.belief[0])
 
         return current_belief_arr, updated_belief_arr, time_arr
