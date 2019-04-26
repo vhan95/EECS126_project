@@ -107,7 +107,7 @@ class VoterModel:
     init_methods = ('rand_pair', 'all_rand', 'all_rand_two', 'all_rand_n', 'all_unique')
     visualization_methods = ('shell', 'random', 'kamada_kawai', 'spring', 'spectral', 'circular')
 
-    def __init__(self, graph=None, voting='simple', clock='discrete', nbeliefs=2, visualization='shell', redraw=True):
+    def __init__(self, graph=None, voting='simple', clock='discrete', nbeliefs=2, visualization='shell', redraw=False):
         """
         Construct a VoterModel.
 
