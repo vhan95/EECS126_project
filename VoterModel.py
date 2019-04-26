@@ -288,9 +288,10 @@ class VoterModel:
             for v in self._voters:
                 current_belief_arr.append(v.belief[0])
             updated_belief_arr = current_belief_arr.copy()
-            # Every voter has an exponential clock with rate 1/n
-            # The minimum of all these clocks is exponential with rate 1
-            time_arr.append(np.random.exponential(1))
+            # Every voter has an exponential clock with rate 1
+            # The minimum of all these clocks is exponential with rate n and mean 1/n
+            # numpy is stupid and uses the mean as the parameter for exponentials.
+            time_arr.append(np.random.exponential(1. / self.graph.number_of_nodes()))
             # Which voter woke up?
             node = np.random.choice(len(self._voters))
             edges = list(self.graph.edges(node))
